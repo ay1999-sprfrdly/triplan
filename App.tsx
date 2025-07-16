@@ -102,12 +102,27 @@ const App: React.FC = () => {
 
     const renderContent = () => {
         if (sharedTripData) {
+            // Check if the shared trip is already in the user's trips (by id)
+            const existingTrip = trips.find(trip => trip.id === sharedTripData.id);
+            // Handler to update the shared trip in local state (and localStorage)
+            const handleUpdateSharedTrip = (updatedTrip: Trip) => {
+                setSharedTripData(updatedTrip);
+                // 共有旅程がまだtripsにない場合は追加、ある場合は更新
+                setTrips(prevTrips => {
+                    const found = prevTrips.find(trip => trip.id === updatedTrip.id);
+                    if (found) {
+                        return prevTrips.map(trip => trip.id === updatedTrip.id ? updatedTrip : trip);
+                    } else {
+                        return [...prevTrips, updatedTrip];
+                    }
+                });
+            };
             return (
                 <ItineraryView
                     trip={sharedTripData}
                     onBack={() => (window.location.hash = '')}
-                    onUpdateTrip={() => {}} // No-op for read-only
-                    isReadOnly={true}
+                    onUpdateTrip={handleUpdateSharedTrip}
+                    isReadOnly={false}
                 />
             );
         }
