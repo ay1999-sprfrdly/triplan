@@ -6,6 +6,7 @@ import Header from './components/common/Header';
 import TripView from './components/TripView';
 import ItineraryView from './components/ItineraryView';
 import { generateColor } from './utils';
+import { saveTripToFirestore, subscribeTrip } from './services/firestoreTripService';
 
 
 const decompressTripFromUrl = (encodedData: string): Trip => {
@@ -22,6 +23,7 @@ const decompressTripFromUrl = (encodedData: string): Trip => {
 const App: React.FC = () => {
     const [trips, setTrips] = useState<Trip[]>([]);
     const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+    const [sharedTripId, setSharedTripId] = useState<string | null>(null);
     const [sharedTripData, setSharedTripData] = useState<Trip | null>(null);
 
     useEffect(() => {
@@ -29,10 +31,10 @@ const App: React.FC = () => {
             const storedTripsJson = localStorage.getItem('travel_planner_trips');
             if (storedTripsJson) {
                 const storedTrips = JSON.parse(storedTripsJson);
-                const migratedTrips = storedTrips.map((trip: any): Trip => {
+                const migratedTrips = (storedTrips as Trip[]).map((trip): Trip => {
                     const needsMigration = 'coverImageUrl' in trip || !trip.color || !('memo' in trip);
                      if (needsMigration) {
-                        const { coverImageUrl, ...rest } = trip;
+                        const { coverImageUrl, ...rest } = trip as any;
                         return {
                             ...rest,
                             color: trip.color || generateColor(trip.id),
@@ -60,63 +62,51 @@ const App: React.FC = () => {
         const handleHashChange = () => {
             const hash = window.location.hash;
             if (hash.startsWith('#/share/')) {
-                const encodedData = hash.substring('#/share/'.length);
-                try {
-                    const trip = decompressTripFromUrl(encodedData);
-                    setSharedTripData(trip);
-                    setSelectedTripId(null); // Ensure we are in share view mode
-                } catch (error) {
-                    console.error("Failed to decode shared trip:", error);
-                    alert("無効な共有リンクです。");
-                    window.location.hash = '';
-                }
+                const tripId = hash.substring('#/share/'.length);
+                setSharedTripId(tripId);
             } else {
+                setSharedTripId(null);
                 setSharedTripData(null);
             }
         };
-
         window.addEventListener('hashchange', handleHashChange);
-        handleHashChange(); // Initial check on load
-
-        return () => {
-            window.removeEventListener('hashchange', handleHashChange);
-        };
+        handleHashChange();
+        return () => window.removeEventListener('hashchange', handleHashChange);
     }, []);
 
+    useEffect(() => {
+        if (!sharedTripId) return;
+        const unsubscribe = subscribeTrip(sharedTripId, (trip: Trip | null) => {
+            setSharedTripData(trip);
+        });
+        return () => unsubscribe();
+    }, [sharedTripId]);
+
     const addTrip = (trip: Trip) => {
-        setTrips(prevTrips => [...prevTrips, trip]);
+        setTrips((prevTrips: Trip[]) => [...prevTrips, trip]);
     };
 
     const deleteTrip = (tripId: string) => {
-        setTrips(prevTrips => prevTrips.filter(trip => trip.id !== tripId));
+        setTrips((prevTrips: Trip[]) => prevTrips.filter(trip => trip.id !== tripId));
         if (selectedTripId === tripId) {
             setSelectedTripId(null);
         }
     };
     
     const updateTrip = (updatedTrip: Trip) => {
-        setTrips(prevTrips => prevTrips.map(trip => trip.id === updatedTrip.id ? updatedTrip : trip));
+        setTrips((prevTrips: Trip[]) => prevTrips.map(trip => trip.id === updatedTrip.id ? updatedTrip : trip));
+    };
+
+    // Firestoreに保存
+    const handleUpdateSharedTrip = async (updatedTrip: Trip) => {
+        setSharedTripData(updatedTrip);
+        await saveTripToFirestore(updatedTrip);
     };
 
     const selectedTrip = trips.find(trip => trip.id === selectedTripId);
 
     const renderContent = () => {
-        if (sharedTripData) {
-            // Check if the shared trip is already in the user's trips (by id)
-            const existingTrip = trips.find(trip => trip.id === sharedTripData.id);
-            // Handler to update the shared trip in local state (and localStorage)
-            const handleUpdateSharedTrip = (updatedTrip: Trip) => {
-                setSharedTripData(updatedTrip);
-                // 共有旅程がまだtripsにない場合は追加、ある場合は更新
-                setTrips(prevTrips => {
-                    const found = prevTrips.find(trip => trip.id === updatedTrip.id);
-                    if (found) {
-                        return prevTrips.map(trip => trip.id === updatedTrip.id ? updatedTrip : trip);
-                    } else {
-                        return [...prevTrips, updatedTrip];
-                    }
-                });
-            };
+        if (sharedTripData && sharedTripId) {
             return (
                 <ItineraryView
                     trip={sharedTripData}

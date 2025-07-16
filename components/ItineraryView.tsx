@@ -14,9 +14,9 @@ interface ItineraryViewProps {
     isReadOnly?: boolean;
 }
 
-const AISuggestionsModal: React.FC<{ trip: Trip, day: DayPlan, isOpen: boolean; onClose: () => void; onAddItems: (items: ItineraryItem[]) => void; }> = ({ trip, day, isOpen, onClose, onAddItems }) => {
-    const [interests, setInterests] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+const AISuggestionsModal: React.FC<{ trip: Trip; day: DayPlan; isOpen: boolean; onClose: () => void; onAddItems: (items: ItineraryItem[]) => void; }> = ({ trip, day, isOpen, onClose, onAddItems }) => {
+    const [interests, setInterests] = useState<string>('');
+    const [isLoading, setIsLoading] = useState<boolean>(false);
     const [suggestions, setSuggestions] = useState<ItineraryItem[]>([]);
     const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<Set<string>>(new Set());
 
@@ -28,7 +28,7 @@ const AISuggestionsModal: React.FC<{ trip: Trip, day: DayPlan, isOpen: boolean; 
     };
 
     const toggleSelection = (id: string) => {
-        setSelectedSuggestionIds(prev => {
+        setSelectedSuggestionIds((prev: Set<string>) => {
             const newSet = new Set(prev);
             if (newSet.has(id)) {
                 newSet.delete(id);
@@ -40,7 +40,7 @@ const AISuggestionsModal: React.FC<{ trip: Trip, day: DayPlan, isOpen: boolean; 
     };
     
     const handleAddSelected = () => {
-        const itemsToAdd = suggestions.filter(s => selectedSuggestionIds.has(s.id));
+        const itemsToAdd = suggestions.filter((s: ItineraryItem) => selectedSuggestionIds.has(s.id));
         onAddItems(itemsToAdd);
         onClose();
     };
@@ -67,7 +67,7 @@ const AISuggestionsModal: React.FC<{ trip: Trip, day: DayPlan, isOpen: boolean; 
                     <input 
                         type="text" 
                         value={interests} 
-                        onChange={(e) => setInterests(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInterests(e.target.value)}
                         placeholder="興味・関心を入力 (例: グルメ, 歴史, 自然)" 
                         className="flex-grow px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
                     />
@@ -81,7 +81,7 @@ const AISuggestionsModal: React.FC<{ trip: Trip, day: DayPlan, isOpen: boolean; 
                     <div className="h-full flex items-center justify-center"><LoadingSpinner text="提案を考えています..." /></div>
                 ) : suggestions.length > 0 ? (
                     <div className="space-y-3">
-                        {suggestions.map((item) => (
+                        {suggestions.map((item: ItineraryItem) => (
                              <div key={item.id} onClick={() => toggleSelection(item.id)} className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedSuggestionIds.has(item.id) ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-200' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
                                  <div className="flex items-start gap-4">
                                     <input type="checkbox" readOnly checked={selectedSuggestionIds.has(item.id)} className="mt-1 h-4 w-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500" />
@@ -109,22 +109,14 @@ const AISuggestionsModal: React.FC<{ trip: Trip, day: DayPlan, isOpen: boolean; 
 
 const ItineraryView: React.FC<ItineraryViewProps> = ({ trip, onBack, onUpdateTrip, isReadOnly = false }) => {
     const [activeTab, setActiveTab] = useState<number | 'memo'>(0);
-    const [newItem, setNewItem] = useState({ time: '', title: '', description: '', link: '' });
-    const [isAISuggestionsModalOpen, setAISuggestionsModalOpen] = useState(false);
-    const [showCopyNotification, setShowCopyNotification] = useState(false);
+    const [newItem, setNewItem] = useState<{ time: string; title: string; description: string; link: string }>({ time: '', title: '', description: '', link: '' });
+    const [isAISuggestionsModalOpen, setAISuggestionsModalOpen] = useState<boolean>(false);
+    const [showCopyNotification, setShowCopyNotification] = useState<boolean>(false);
 
     const activeDay = typeof activeTab === 'number' ? trip.days[activeTab] : null;
 
     const handleShare = () => {
-        const jsonString = JSON.stringify(trip);
-        const compressed = pako.deflate(jsonString);
-        const binaryString = Array.from(compressed).map(byte => String.fromCharCode(byte)).join('');
-        const encodedData = btoa(binaryString)
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=+$/, '');
-        
-        const shareUrl = `${window.location.origin}${window.location.pathname}#/share/${encodedData}`;
+        const shareUrl = `${window.location.origin}${window.location.pathname}#/share/${trip.id}`;
         navigator.clipboard.writeText(shareUrl);
         setShowCopyNotification(true);
         setTimeout(() => setShowCopyNotification(false), 2000);
@@ -135,13 +127,13 @@ const ItineraryView: React.FC<ItineraryViewProps> = ({ trip, onBack, onUpdateTri
         onUpdateTrip({ ...trip, memo: e.target.value });
     };
 
-    const handleAddItem = (e: FormEvent) => {
+    const handleAddItem = (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!newItem.title || !newItem.time || isReadOnly || !activeDay || typeof activeTab !== 'number') return;
 
         const updatedDay: DayPlan = {
             ...activeDay,
-            items: [...activeDay.items, { ...newItem, id: Date.now().toString() }].sort((a,b) => a.time.localeCompare(b.time)),
+            items: [...activeDay.items, { ...newItem, id: Date.now().toString() }].sort((a, b) => a.time.localeCompare(b.time)),
         };
         const updatedTrip: Trip = {
             ...trip,
@@ -249,7 +241,7 @@ const ItineraryView: React.FC<ItineraryViewProps> = ({ trip, onBack, onUpdateTri
                     
                     {activeDay.items.length > 0 ? (
                         <div className="space-y-4">
-                            {activeDay.items.map(item => (
+                            {activeDay.items.map((item: ItineraryItem) => (
                                 <div key={item.id} className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
                                     <div className="text-lg font-bold text-emerald-600 w-16 text-center">{item.time}</div>
                                     <div className="flex-1 border-l-2 border-emerald-200 pl-4">
